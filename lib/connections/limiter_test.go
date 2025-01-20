@@ -12,16 +12,20 @@ import (
 	crand "crypto/rand"
 	"io"
 	"math/rand"
+	"sync/atomic"
 	"testing"
+
+	"golang.org/x/time/rate"
 
 	"github.com/syncthing/syncthing/lib/config"
 	"github.com/syncthing/syncthing/lib/events"
 	"github.com/syncthing/syncthing/lib/protocol"
-	"golang.org/x/time/rate"
 )
 
-var device1, device2, device3, device4 protocol.DeviceID
-var dev1Conf, dev2Conf, dev3Conf, dev4Conf config.DeviceConfiguration
+var (
+	device1, device2, device3, device4     protocol.DeviceID
+	dev1Conf, dev2Conf, dev3Conf, dev4Conf config.DeviceConfiguration
+)
 
 func init() {
 	device1, _ = protocol.DeviceIDFromString("AIR6LPZ7K4PTTUXQSMUUCPQ5YWOEDFIIQJUG7772YQXXR5YD6AWQ")
@@ -234,7 +238,7 @@ func TestLimitedWriterWrite(t *testing.T) {
 		writer: cw,
 		waiterHolder: waiterHolder{
 			waiter:    rate.NewLimiter(rate.Limit(42), limiterBurstSize),
-			limitsLAN: new(atomicBool),
+			limitsLAN: new(atomic.Bool),
 			isLAN:     false, // enables limiting
 		},
 	}
@@ -263,7 +267,7 @@ func TestLimitedWriterWrite(t *testing.T) {
 		writer: cw,
 		waiterHolder: waiterHolder{
 			waiter:    rate.NewLimiter(rate.Limit(42), limiterBurstSize),
-			limitsLAN: new(atomicBool),
+			limitsLAN: new(atomic.Bool),
 			isLAN:     true, // disables limiting
 		},
 	}
@@ -287,7 +291,7 @@ func TestLimitedWriterWrite(t *testing.T) {
 		writer: cw,
 		waiterHolder: waiterHolder{
 			waiter:    totalWaiter{rate.NewLimiter(rate.Inf, limiterBurstSize), rate.NewLimiter(rate.Inf, limiterBurstSize)},
-			limitsLAN: new(atomicBool),
+			limitsLAN: new(atomic.Bool),
 			isLAN:     false, // enables limiting
 		},
 	}
@@ -315,7 +319,7 @@ func TestLimitedWriterWrite(t *testing.T) {
 				rate.NewLimiter(rate.Limit(42), limiterBurstSize),
 				rate.NewLimiter(rate.Inf, limiterBurstSize),
 			},
-			limitsLAN: new(atomicBool),
+			limitsLAN: new(atomic.Bool),
 			isLAN:     false, // enables limiting
 		},
 	}

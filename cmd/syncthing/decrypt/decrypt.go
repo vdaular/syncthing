@@ -17,6 +17,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"google.golang.org/protobuf/proto"
+
+	"github.com/syncthing/syncthing/internal/gen/bep"
 	"github.com/syncthing/syncthing/lib/config"
 	"github.com/syncthing/syncthing/lib/fs"
 	"github.com/syncthing/syncthing/lib/osutil"
@@ -35,6 +38,7 @@ type CLI struct {
 	TokenPath  string `placeholder:"PATH" help:"Path to the token file within the folder (used to determine folder ID)"`
 
 	folderKey *[32]byte
+	keyGen    *protocol.KeyGenerator
 }
 
 type storedEncryptionToken struct {
@@ -68,7 +72,8 @@ func (c *CLI) Run() error {
 		}
 	}
 
-	c.folderKey = protocol.KeyFromPassword(c.FolderID, c.Password)
+	c.keyGen = protocol.NewKeyGenerator()
+	c.folderKey = c.keyGen.KeyFromPassword(c.FolderID, c.Password)
 
 	return c.walk()
 }
@@ -151,7 +156,7 @@ func (c *CLI) process(srcFs fs.Filesystem, dstFs fs.Filesystem, path string) err
 	// in native format, while protocol expects wire format (slashes).
 	encFi.Name = osutil.NormalizedFilename(encFi.Name)
 
-	plainFi, err := protocol.DecryptFileInfo(*encFi, c.folderKey)
+	plainFi, err := protocol.DecryptFileInfo(c.keyGen, *encFi, c.folderKey)
 	if err != nil {
 		return fmt.Errorf("%s: decrypting metadata: %w", path, err)
 	}
@@ -162,7 +167,7 @@ func (c *CLI) process(srcFs fs.Filesystem, dstFs fs.Filesystem, path string) err
 
 	var plainFd fs.File
 	if dstFs != nil {
-		if err := dstFs.MkdirAll(filepath.Dir(plainFi.Name), 0700); err != nil {
+		if err := dstFs.MkdirAll(filepath.Dir(plainFi.Name), 0o700); err != nil {
 			return fmt.Errorf("%s: %w", plainFi.Name, err)
 		}
 
@@ -209,7 +214,7 @@ func (c *CLI) decryptFile(encFi *protocol.FileInfo, plainFi *protocol.FileInfo, 
 		return fmt.Errorf("block count mismatch: encrypted %d != plaintext %d", len(encFi.Blocks), len(plainFi.Blocks))
 	}
 
-	fileKey := protocol.FileKey(plainFi.Name, c.folderKey)
+	fileKey := c.keyGen.FileKey(plainFi.Name, c.folderKey)
 	for i, encBlock := range encFi.Blocks {
 		// Read the encrypted block
 		buf := make([]byte, encBlock.Size)
@@ -278,10 +283,11 @@ func loadEncryptedFileInfo(fd fs.File) (*protocol.FileInfo, error) {
 		return nil, err
 	}
 
-	var encFi protocol.FileInfo
-	if err := encFi.Unmarshal(trailer); err != nil {
+	var encFi bep.FileInfo
+	if err := proto.Unmarshal(trailer, &encFi); err != nil {
 		return nil, err
 	}
+	fi := protocol.FileInfoFromWire(&encFi)
 
-	return &encFi, nil
+	return &fi, nil
 }

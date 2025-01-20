@@ -15,8 +15,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/sasha-s/go-deadlock"
 )
 
 var timeNow = time.Now
@@ -39,9 +37,6 @@ type WaitGroup interface {
 }
 
 func NewMutex() Mutex {
-	if useDeadlock {
-		return &deadlock.Mutex{}
-	}
 	if debug {
 		mutex := &loggedMutex{}
 		mutex.holder.Store(holder{})
@@ -51,9 +46,6 @@ func NewMutex() Mutex {
 }
 
 func NewRWMutex() RWMutex {
-	if useDeadlock {
-		return &deadlock.RWMutex{}
-	}
 	if debug {
 		mutex := &loggedRWMutex{
 			readHolders: make(map[int][]holder),
@@ -116,16 +108,16 @@ type loggedRWMutex struct {
 	readHolders    map[int][]holder
 	readHoldersMut sync.Mutex
 
-	logUnlockers int32
+	logUnlockers atomic.Bool
 	unlockers    chan holder
 }
 
 func (m *loggedRWMutex) Lock() {
 	start := timeNow()
 
-	atomic.StoreInt32(&m.logUnlockers, 1)
+	m.logUnlockers.Store(true)
 	m.RWMutex.Lock()
-	atomic.StoreInt32(&m.logUnlockers, 0)
+	m.logUnlockers.Store(false)
 
 	holder := getHolder()
 	m.holder.Store(holder)
@@ -173,7 +165,7 @@ func (m *loggedRWMutex) RUnlock() {
 		m.readHolders[id] = current[:len(current)-1]
 	}
 	m.readHoldersMut.Unlock()
-	if atomic.LoadInt32(&m.logUnlockers) == 1 {
+	if m.logUnlockers.Load() {
 		holder := getHolder()
 		select {
 		case m.unlockers <- holder:

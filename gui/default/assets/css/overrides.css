@@ -8,7 +8,6 @@
 */
 
 body {
-    padding-bottom: 70px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     overflow-y: scroll;
 }
@@ -144,6 +143,11 @@ table.table-auto td {
     max-width: 0px;
 }
 
+/* Tag name is needed for selector to be specific enough to override Bootstrap style */
+input[type="checkbox"].extended-attributes-filter-rule-checkbox {
+    margin-top: 13px;
+}
+
 /* Remote Devices connection-quality indicator */
 .reception-0 {
     background: url('../../vendor/bootstrap/fonts/reception-0.svg') no-repeat;
@@ -176,13 +180,20 @@ table.table-auto td {
     margin-right: .14285715em;
 }
 
-.remote-devices-panel {
+.inline-icon {
     display: inline-block;
 }
 
 /* Wrap long file paths to prevent text overflow. See issue #6268. */
-.file-path {
+.word-break-all {
     word-break: break-all;
+}
+
+/* Break up long words in paragraphs only if necessary to prevent text overflow. */
+.overflow-break-word {
+    overflow-wrap: break-word;
+    /* Legacy name alias */
+    word-wrap: break-word;
 }
 
 .folder-advanced {
@@ -293,11 +304,7 @@ a.toggler:hover {
     text-decoration: none;
 }
 
-/**
- * Panel padding decrease
- */
-
-.panel-collapse .panel-body {
+.panel-body.less-padding {
     padding: 5px;
 }
 
@@ -394,25 +401,6 @@ ul.three-columns li, ul.two-columns li {
     width: 100%;
 }
 
-/** Footer nav on small devices **/
-@media (max-width: 1199px) {
-    /* Stay at the end of the page, with space reserved for the footer
-    usually taking up two rows. */
-
-    html {
-        position: relative;
-        min-height: 100%;
-    }
-
-    body {
-        padding-bottom: 60px;
-    }
-
-    .navbar-fixed-bottom {
-        position: absolute;
-    }
-}
-
 @media (max-width: 768px) {
     /* Layout after the normal contents, as this is when the footer switches
     to a vertical layout. */
@@ -423,10 +411,6 @@ ul.three-columns li, ul.two-columns li {
 
     .navbar-brand {
         margin: 3.25px -15px;
-    }
-
-    .navbar-fixed-bottom {
-        position: relative;
     }
 
     .navbar-nav .open .dropdown-menu {
@@ -464,7 +448,6 @@ ul.three-columns li, ul.two-columns li {
 }
 
 @media (max-width:479px) {
-
     nav .dropdown-toggle {
         font-size: 1em;
     }
@@ -473,25 +456,17 @@ ul.three-columns li, ul.two-columns li {
         padding: 12px 15px 12px 25px;
     }
 
-    .navbar-fixed-bottom li {
-         width: 100%;
-    }
-}
-
-.tab-content {
-    padding-top: 10px;
-}
-
-@media (max-width: 419px) {
-    /* the selectors are build to target only the content of folder and device
-       panels as it would "destroy" e.g. out of sync or recent changes listings */
+    /* The selectors are build to target only the content of folder and device
+       panels as it would "destroy" e.g. out of sync or recent changes listings.
+       The !important is needed to override .visible-xs that sets display to a
+       specific table element instead of block. */
     div[id^='device-'].panel-collapse table,
     div[id^='folder-'].panel-collapse table,
     div[id^='device-'].panel-collapse tbody,
     div[id^='folder-'].panel-collapse tbody,
     div[id^='device-'].panel-collapse tr,
     div[id^='folder-'].panel-collapse tr {
-        display: block;
+        display: block !important;
     }
     div[id^='device-'].panel-collapse th,
     div[id^='folder-'].panel-collapse th,
@@ -524,6 +499,15 @@ ul.three-columns li, ul.two-columns li {
         * columns. */
         white-space: normal;
     }
+
+    /* Move share buttons below device ID on small screens. */
+    #shareDeviceIdButtons {
+        display: inline-block;
+    }
+}
+
+.tab-content {
+    padding-top: 10px;
 }
 
 .form-horizontal .form-group {
@@ -538,6 +522,18 @@ ul.three-columns li, ul.two-columns li {
 .form-control option[disabled] {
     background-color: #eeeeee;
     opacity: 1;
+}
+
+.checkbox[disabled] {
+    background-color: #eeeeee;
+    opacity: 1;
+    margin-left: -5px;
+    padding-left: 5px;
+}
+
+.checkbox[disabled] *, .checkbox[disabled] .help-block {
+    color: #999999;
+    cursor: not-allowed;
 }
 
 /* Make a "well" look more like a readonly text input when grouped with a button */

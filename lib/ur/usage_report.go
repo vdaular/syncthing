@@ -164,11 +164,11 @@ func (s *Service) reportData(ctx context.Context, urVersion int, preview bool) (
 			report.DeviceUses.CustomCertName++
 		}
 		switch cfg.Compression {
-		case protocol.CompressionAlways:
+		case config.CompressionAlways:
 			report.DeviceUses.CompressAlways++
-		case protocol.CompressionMetadata:
+		case config.CompressionMetadata:
 			report.DeviceUses.CompressMetadata++
-		case protocol.CompressionNever:
+		case config.CompressionNever:
 			report.DeviceUses.CompressNever++
 		default:
 			l.Warnf("Unhandled versioning type for usage reports: %s", cfg.Compression)
@@ -224,7 +224,7 @@ func (s *Service) reportData(ctx context.Context, urVersion int, preview bool) (
 		report.TemporariesDisabled = opts.KeepTemporariesH == 0
 		report.TemporariesCustom = opts.KeepTemporariesH != 24
 		report.LimitBandwidthInLan = opts.LimitBandwidthInLan
-		report.CustomReleaseURL = opts.ReleasesURL != "https=//upgrades.syncthing.net/meta.json"
+		report.CustomReleaseURL = opts.ReleasesURL != "https://upgrades.syncthing.net/meta.json"
 		report.CustomStunServers = len(opts.RawStunServers) != 1 || opts.RawStunServers[0] != "default"
 
 		for _, cfg := range s.cfg.Folders() {
@@ -254,7 +254,7 @@ func (s *Service) reportData(ctx context.Context, urVersion int, preview bool) (
 			}
 			report.FolderUsesV3.PullOrder[cfg.Order.String()]++
 			report.FolderUsesV3.FilesystemType[cfg.FilesystemType.String()]++
-			report.FolderUsesV3.FsWatcherDelays = append(report.FolderUsesV3.FsWatcherDelays, cfg.FSWatcherDelayS)
+			report.FolderUsesV3.FsWatcherDelays = append(report.FolderUsesV3.FsWatcherDelays, int(cfg.FSWatcherDelayS))
 			if cfg.MarkerName != config.DefaultMarkerName {
 				report.FolderUsesV3.CustomMarkerName++
 			}
@@ -274,12 +274,30 @@ func (s *Service) reportData(ctx context.Context, urVersion int, preview bool) (
 			if cfg.Type == config.FolderTypeReceiveEncrypted {
 				report.FolderUsesV3.ReceiveEncrypted++
 			}
+			if cfg.SendXattrs {
+				report.FolderUsesV3.SendXattrs++
+			}
+			if cfg.SyncXattrs {
+				report.FolderUsesV3.SyncXattrs++
+			}
+			if cfg.SendOwnership {
+				report.FolderUsesV3.SendOwnership++
+			}
+			if cfg.SyncOwnership {
+				report.FolderUsesV3.SyncOwnership++
+			}
 		}
 		sort.Ints(report.FolderUsesV3.FsWatcherDelays)
 
 		for _, cfg := range s.cfg.Devices() {
 			if cfg.Untrusted {
 				report.DeviceUsesV3.Untrusted++
+			}
+			if cfg.MaxRecvKbps > 0 || cfg.MaxSendKbps > 0 {
+				report.DeviceUsesV3.UsesRateLimit++
+			}
+			if cfg.RawNumConnections > 1 {
+				report.DeviceUsesV3.MultipleConnections++
 			}
 		}
 
@@ -310,7 +328,6 @@ func (s *Service) reportData(ctx context.Context, urVersion int, preview bool) (
 			if err == nil {
 				if addr.IP.IsLoopback() {
 					report.GUIStats.ListenLocal++
-
 				} else if addr.IP.IsUnspecified() {
 					report.GUIStats.ListenUnspecified++
 				}
@@ -329,6 +346,11 @@ func (s *Service) reportData(ctx context.Context, urVersion int, preview bool) (
 }
 
 func (*Service) UptimeS() int {
+	// Handle nonexistent or wildly incorrect system clock.
+	// This code was written in 2023, it can't run in the past.
+	if StartTime.Year() < 2023 {
+		return 0
+	}
 	return int(time.Since(StartTime).Seconds())
 }
 
@@ -348,6 +370,8 @@ func (s *Service) sendUsageReport(ctx context.Context) error {
 			Proxy:       http.ProxyFromEnvironment,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: s.cfg.Options().URPostInsecurely,
+				MinVersion:         tls.VersionTLS12,
+				ClientSessionCache: tls.NewLRUClientSessionCache(0),
 			},
 		},
 	}

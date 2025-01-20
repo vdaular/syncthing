@@ -1,4 +1,8 @@
-// Copyright (C) 2016 The Protocol Authors.
+// Copyright (C) 2016 The Syncthing Authors.
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this file,
+// You can obtain one at https://mozilla.org/MPL/2.0/.
 
 package protocol
 
@@ -8,29 +12,28 @@ import (
 	"sync/atomic"
 )
 
-// Global pool to get buffers from. Requires Blocksizes to be initialised,
-// therefore it is initialized in the same init() as BlockSizes
-var BufferPool bufferPool
+// Global pool to get buffers from. Initialized in init().
+var BufferPool *bufferPool
 
 type bufferPool struct {
-	puts   int64
-	skips  int64
-	misses int64
+	puts   atomic.Int64
+	skips  atomic.Int64
+	misses atomic.Int64
 	pools  []sync.Pool
-	hits   []int64 // start of slice allocation is always aligned
+	hits   []atomic.Int64
 }
 
-func newBufferPool() bufferPool {
-	return bufferPool{
+func newBufferPool() *bufferPool {
+	return &bufferPool{
 		pools: make([]sync.Pool, len(BlockSizes)),
-		hits:  make([]int64, len(BlockSizes)),
+		hits:  make([]atomic.Int64, len(BlockSizes)),
 	}
 }
 
 func (p *bufferPool) Get(size int) []byte {
 	// Too big, isn't pooled
 	if size > MaxBlockSize {
-		atomic.AddInt64(&p.skips, 1)
+		p.skips.Add(1)
 		return make([]byte, size)
 	}
 
@@ -38,13 +41,13 @@ func (p *bufferPool) Get(size int) []byte {
 	bkt := getBucketForLen(size)
 	for j := bkt; j < len(BlockSizes); j++ {
 		if intf := p.pools[j].Get(); intf != nil {
-			atomic.AddInt64(&p.hits[j], 1)
+			p.hits[j].Add(1)
 			bs := *intf.(*[]byte)
 			return bs[:size]
 		}
 	}
 
-	atomic.AddInt64(&p.misses, 1)
+	p.misses.Add(1)
 
 	// All pools are empty, must allocate. For very small slices where we
 	// didn't have a block to reuse, just allocate a small slice instead of
@@ -60,11 +63,11 @@ func (p *bufferPool) Get(size int) []byte {
 func (p *bufferPool) Put(bs []byte) {
 	// Don't buffer slices outside of our pool range
 	if cap(bs) > MaxBlockSize || cap(bs) < MinBlockSize {
-		atomic.AddInt64(&p.skips, 1)
+		p.skips.Add(1)
 		return
 	}
 
-	atomic.AddInt64(&p.puts, 1)
+	p.puts.Add(1)
 	bkt := putBucketForCap(cap(bs))
 	p.pools[bkt].Put(&bs)
 }
